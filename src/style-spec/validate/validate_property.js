@@ -13,6 +13,7 @@ export default function validateProperty(options, propertyType) {
     const value = options.value;
     const propertyKey = options.objectKey;
     const layerSpec = styleSpec[`${propertyType}_${options.layerType}`];
+    const propsThatRequireSprite = ['background-pattern', 'fill-pattern', 'fill-extrusion-pattern', 'line-pattern', 'icon-image'];
 
     if (!layerSpec) return [];
 
@@ -48,6 +49,12 @@ export default function validateProperty(options, propertyType) {
         }
         if (propertyKey === 'text-font' && isFunction(deepUnbundle(value)) && unbundle(value.type) === 'identity') {
             errors.push(new ValidationError(key, value, '"text-font" does not support identity functions'));
+        }
+    }
+
+    if (options.layerType === 'background' || options.layerType === 'fill' || options.layerType === 'fill-extrusion' || options.layerType === 'line' || options.layerType === 'symbol') {
+        if (propsThatRequireSprite.indexOf(propertyKey) > -1 && style && !style.sprite) {
+            errors.push(new ValidationError(key, value, `use of "${propertyKey}" requires a style "sprite" property`));
         }
     }
 
