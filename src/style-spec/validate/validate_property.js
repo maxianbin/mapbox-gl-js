@@ -1,4 +1,5 @@
 
+import { warnOnce } from '../../util/util';
 import validate from './validate';
 import ValidationError from '../error/validation_error';
 import getType from '../util/get_type';
@@ -52,9 +53,14 @@ export default function validateProperty(options, propertyType) {
         }
     }
 
+
     if (options.layerType === 'background' || options.layerType === 'fill' || options.layerType === 'fill-extrusion' || options.layerType === 'line' || options.layerType === 'symbol') {
+        if (propsThatRequireSprite.indexOf(propertyKey) > -1) {
+          console.log('using a potential sprite property!', propertyKey, options, style);
+        }
         if (propsThatRequireSprite.indexOf(propertyKey) > -1 && style && !style.sprite) {
-            errors.push(new ValidationError(key, value, `use of "${propertyKey}" requires a style "sprite" property`));
+            // errors.push(new ValidationError(key, value, `use of "${propertyKey}" requires a style "sprite" property`));
+            warnOnce(`Use of "${propertyKey}" in may require a style "sprite" property. If you're experiencing a problem, please ensure that your image has loaded correctly.`);
         }
     }
 
