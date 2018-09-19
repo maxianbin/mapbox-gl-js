@@ -1,11 +1,17 @@
 const webpack = require('webpack');
+const mapboxAssembly = require('@mapbox/mbx-assembly');
+const path = require('path');
 
 module.exports = () => {
     const config = {
         siteBasePath: '/mapbox-gl-js',
         siteOrigin: 'https://www.mapbox.com',
         pagesDirectory: `${__dirname}/docs/pages`,
+        browserslist: mapboxAssembly.browsersList,
+        postcssPlugins: mapboxAssembly.postcssPipeline.plugins,
         stylesheets: [
+            require.resolve('@mapbox/mbx-assembly/dist/assembly.css'),
+            require.resolve('@mapbox/dr-ui/css/docs-prose.css'),
             `${__dirname}/docs/components/site.css`,
             `${__dirname}/docs/components/prism_highlight.css`,
             `${__dirname}/vendor/dotcom-page-shell/page-shell-styles.css`
@@ -31,11 +37,35 @@ module.exports = () => {
                 filename: `${__dirname}/vendor/dotcom-page-shell/page-shell-script.js`
             }
         ],
+         jsxtremeMarkdownOptions: {
+            wrapper: path.join(__dirname, './docs/components/markdown-page-shell.js'),
+            rehypePlugins: [
+                require('@mapbox/dr-ui/plugins/add-links-to-headings'),
+            ]
+        },
         dataSelectors: {
             examples: ({pages}) => {
                 return pages
                     .filter(({path, frontMatter}) => /\/example\//.test(path) && frontMatter.tags)
-                    .map(({frontMatter}) => frontMatter);
+                    .map(example => {
+                        return {
+                            path: example.path,
+                            title: example.frontMatter.title,
+                            description: example.frontMatter.description,
+                            tags: example.frontMatter.tags,
+                            pathname: example.frontMatter.pathname
+                        }
+                    });
+            },
+            listSubfolders: data => {
+                const folders = data.pages
+                    .filter(file => {
+                        return file.path.split('/').length === 4;
+                    })
+                    .map(folder => {
+                        return folder;
+                    });
+                return folders;
             }
         },
         devBrowserslist: false
