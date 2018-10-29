@@ -6,7 +6,7 @@ import browser from '../util/browser';
 import window from '../util/window';
 const { HTMLImageElement, HTMLElement } = window;
 import DOM from '../util/dom';
-import { getImage, ResourceType } from '../util/ajax';
+import { getImage, getJSON, ResourceType, RequestParameters } from '../util/ajax';
 import Style from '../style/style';
 import EvaluationParameters from '../style/evaluation_parameters';
 import Painter from '../render/painter';
@@ -28,7 +28,7 @@ import TaskQueue from '../util/task_queue';
 import type {PointLike} from '@mapbox/point-geometry';
 import type {LngLatLike} from '../geo/lng_lat';
 import type {LngLatBoundsLike} from '../geo/lng_lat_bounds';
-import type {RequestParameters} from '../util/ajax';
+import { normalizeStyleURL } from '../util/mapbox';
 import type {StyleOptions} from '../style/style';
 import type {MapEvent, MapDataEvent} from './events';
 import type {CustomLayerInterface} from '../style/style_layer/custom_style_layer';
@@ -952,17 +952,43 @@ class Map extends Camera {
      */
     setStyle(style: StyleSpecification | string | null, options?: {diff?: boolean} & StyleOptions) {
         const shouldTryDiff = (!options || (options.diff !== false && !options.localIdeographFontFamily)) && this.style;
-        if (shouldTryDiff && style && typeof style === 'object') {
-            try {
-                if (this.style.setState(style)) {
+        if (shouldTryDiff && style) {
+            if (typeof style === 'string') {
+                const url = normalizeStyleURL(style);
+                const request = this._transformRequest(url, ResourceType.Style);
+                getJSON(request, (error: ?Error, json: ?Object) => {
+                  if (error) {
+                    this.fire(new ErrorEvent(error));
+                  } else if (json) {
+                    console.log('json', json);
+                    this.on('style.load', () => {
+                      console.log('style loaded');
+                      try {
+                        if (this.style.setState(json)) {
+                          this._update(true);
+                        }
+                        return this;
+                      } catch (e) {
+                        warnOnce(
+                          `Unable to perform style diff: ${e.message || e.error || e}.  Rebuilding the style from scratch.`
+                        );
+                      }
+                    });
+                  }
+                });
+            } else if (typeof style === 'object') {
+                try {
+                  if (this.style.setState(style)) {
                     this._update(true);
-                }
-                return this;
-            } catch (e) {
-                warnOnce(
+                  }
+                  return this;
+                } catch (e) {
+                  warnOnce(
                     `Unable to perform style diff: ${e.message || e.error || e}.  Rebuilding the style from scratch.`
-                );
+                  );
+                }
             }
+
         }
 
         if (this.style) {

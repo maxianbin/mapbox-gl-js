@@ -431,7 +431,7 @@ class Style extends Evented {
 
         const changes = diffStyles(this.serialize(), nextState)
             .filter(op => !(op.command in ignoredDiffOperations));
-
+        console.log('changes', changes);
         if (changes.length === 0) {
             return false;
         }
