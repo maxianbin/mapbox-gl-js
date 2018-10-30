@@ -31,6 +31,7 @@ class GlobalCircleBucket {
     indexBuffer: IndexBuffer;
 
     programConfigurations: ProgramConfigurationSet<Layer>;
+    tileProgramConfigurations: Array<ProgramConfigurationSet<Layer>>;
     segments: SegmentVector;
     uploaded: boolean
 
@@ -39,6 +40,7 @@ class GlobalCircleBucket {
         this.layers = options.layers;
 
         this.tileLayoutVertexArrays = [];
+        this.tileProgramConfigurations = [];
 
         this.layoutVertexArray = new CircleLayoutArray();
         this.indexArray = new TriangleIndexArray();
@@ -60,6 +62,7 @@ class GlobalCircleBucket {
 
     addTileBucket(bucket: CircleBucket) {
         this.tileLayoutVertexArrays.push(bucket.layoutVertexArray);
+        this.tileProgramConfigurations.push(bucket.programConfigurations);
         this.uploaded = false;
     }
 
@@ -101,6 +104,21 @@ class GlobalCircleBucket {
         this.segments = new SegmentVector();
         this.programConfigurations = new ProgramConfigurationSet(layoutAttributes, this.layers, 0); // TODO figure out zoom, shared program configs, etc.
 
+        const circles = this.programConfigurations.programConfigurations.circles;
+        for (const property in circles.binders) {
+            const binder = circles.binders[property];
+            if (!binder.paintVertexArray) continue;
+            for (const tileProgramConfiguration of this.tileProgramConfigurations) {
+                const tilePaintVertexArray = tileProgramConfiguration.programConfigurations.circles.binders[property].paintVertexArray;
+                const baseIndex = binder.paintVertexArray.length;
+                binder.paintVertexArray.resize(baseIndex + tilePaintVertexArray.length);
+                for (let i = 0; i < tilePaintVertexArray.uint8.length; i++) {
+                    binder.paintVertexArray.uint8[baseIndex + i] = tilePaintVertexArray.uint8[i];
+                }
+            }
+        }
+        this.programConfigurations.needsUpload = true;
+
         this.layoutVertexArray.clear();
         this.indexArray.clear();
         this.layoutVertexArray.reserve(this.tileLayoutVertexArrays.reduce((sum, current) => {
@@ -135,8 +153,6 @@ class GlobalCircleBucket {
             this.indexArray.emplaceBack(index, index + 1, index + 2);
             this.indexArray.emplaceBack(index, index + 3, index + 2);
 
-        // TODO hook back up
-            this.programConfigurations.populatePaintArrays(this.layoutVertexArray.length, {id: 0}, index, {});
         }
         this.indexArray._trim();
         if (this.layoutVertexArray.capacity > this.layoutVertexArray.length) {
