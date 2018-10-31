@@ -39,8 +39,9 @@ class GlobalCircleBucket {
         this.layerIds = options.layerIds;
         this.layers = options.layers;
 
-        this.tileLayoutVertexArrays = [];
-        this.tileProgramConfigurations = [];
+        this.tileLayoutVertexArrays = {};
+        this.tileProgramConfigurations = {};
+        this.zoom = 0;
 
         this.layoutVertexArray = new CircleLayoutArray();
         this.indexArray = new TriangleIndexArray();
@@ -61,8 +62,19 @@ class GlobalCircleBucket {
     }
 
     addTileBucket(bucket: CircleBucket) {
-        this.tileLayoutVertexArrays.push(bucket.layoutVertexArray);
-        this.tileProgramConfigurations.push(bucket.programConfigurations);
+        const key = bucket.layerIds[0] + bucket.tileID.toString() + "/" + bucket.tileID.wrap;
+        console.log("Adding " + key);
+        this.tileLayoutVertexArrays[key] = bucket.layoutVertexArray;
+        this.tileProgramConfigurations[key] = bucket.programConfigurations;
+        this.zoom = bucket.zoom;
+        this.uploaded = false;
+    }
+
+    removeTileBucket(bucket: CircleBucket) {
+        const key = bucket.layerIds[0] + bucket.tileID.toString() + "/" + bucket.tileID.wrap;
+        console.log("Removing " + key);
+        delete this.tileLayoutVertexArrays[key];
+        delete this.tileProgramConfigurations[key];
         this.uploaded = false;
     }
 
@@ -101,32 +113,51 @@ class GlobalCircleBucket {
         if (this.segments) {
             this.segments.destroy();
         }
+        if (this.layoutVertexBuffer) {
+            this.layoutVertexBuffer.destroy();
+        }
+        if (this.indexBuffer) {
+            this.indexBuffer.destroy();
+        }
+
         this.segments = new SegmentVector();
-        this.programConfigurations = new ProgramConfigurationSet(layoutAttributes, this.layers, 0); // TODO figure out zoom, shared program configs, etc.
+        this.layoutVertexArray = new CircleLayoutArray();
+        this.indexArray = new TriangleIndexArray();
+        this.programConfigurations = new ProgramConfigurationSet(layoutAttributes, this.layers, this.zoom); // TODO figure out zoom, shared program configs, etc.
 
         const circles = this.programConfigurations.programConfigurations.circles;
         for (const property in circles.binders) {
             const binder = circles.binders[property];
             if (!binder.paintVertexArray) continue;
-            for (const tileProgramConfiguration of this.tileProgramConfigurations) {
+            for (const key in this.tileProgramConfigurations) {
+                binder.paintVertexArray._trim();
+                console.log("pre-copy paint vertex array length " + binder.paintVertexArray.uint8.length);
+                const tileProgramConfiguration = this.tileProgramConfigurations[key];
+                binder.maxValue = Math.max(binder.maxValue, tileProgramConfiguration.programConfigurations.circles.binders[property].maxValue);
                 const tilePaintVertexArray = tileProgramConfiguration.programConfigurations.circles.binders[property].paintVertexArray;
                 const baseIndex = binder.paintVertexArray.length;
+                const baseIndexUint8 = binder.paintVertexArray.uint8.length;
+                console.log("Copying " + property + " for key " + key + " with length " + tilePaintVertexArray.length);
                 binder.paintVertexArray.resize(baseIndex + tilePaintVertexArray.length);
+                binder.paintVertexArray._trim();
                 for (let i = 0; i < tilePaintVertexArray.uint8.length; i++) {
-                    binder.paintVertexArray.uint8[baseIndex + i] = tilePaintVertexArray.uint8[i];
+                    binder.paintVertexArray.uint8[baseIndexUint8 + i] = tilePaintVertexArray.uint8[i];
                 }
+                console.log("post-copy paint vertex array length " + binder.paintVertexArray.uint8.length);
             }
         }
         this.programConfigurations.needsUpload = true;
 
-        this.layoutVertexArray.clear();
-        this.indexArray.clear();
-        this.layoutVertexArray.reserve(this.tileLayoutVertexArrays.reduce((sum, current) => {
+        this.layoutVertexArray.reserve(Object.values(this.tileLayoutVertexArrays).reduce((sum, current) => {
             return sum + current.length;
         }, 0));
 
+        console.log("Generating arrays for "  + this.layoutVertexArray.capacity + " vertices");
+
         const indexPositions = [];
-        for (const tileLayoutVertexArray of this.tileLayoutVertexArrays) {
+        for (const key in this.tileLayoutVertexArrays) {
+            const tileLayoutVertexArray = this.tileLayoutVertexArrays[key];
+            console.log("Copying vertex array for key " + key + " with length " + tileLayoutVertexArray.length);
             for (let i = 0; i < tileLayoutVertexArray.length * 4; i += 16) {
                 const segment = this.segments.prepareSegment(4, this.layoutVertexArray, this.indexArray);
                 const index = segment.vertexLength;
@@ -155,9 +186,7 @@ class GlobalCircleBucket {
 
         }
         this.indexArray._trim();
-        if (this.layoutVertexArray.capacity > this.layoutVertexArray.length) {
-            this.layoutVertexArray._trim();
-        }
+        this.layoutVertexArray._trim();
 
     }
 }

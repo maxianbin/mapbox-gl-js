@@ -687,6 +687,26 @@ class SourceCache extends Evented {
         if (!cached) {
             tile = new Tile(tileID, this._source.tileSize * tileID.overscaleFactor());
             this._loadTile(tile, this._tileLoaded.bind(this, tile, tileID.key, tile.state));
+        } else {
+            for (const bucketId in tile.buckets) {
+                const bucket = tile.buckets[bucketId];
+                if (bucket instanceof CircleBucket) {
+                    // TODO: look out for changes to the style that change the bucket->layerId mapping
+                    const leaderId = bucket.layerIds[0];
+                    let globalBucket = this._globalBuckets[leaderId];
+                    if (!globalBucket) {
+                        globalBucket = new GlobalCircleBucket({
+                            layerIds: bucket.layerIds,
+                            layers: bucket.layers
+                        });
+                        for (const layerId of bucket.layerIds) {
+                            this._globalBuckets[layerId] = globalBucket;
+                        }
+                    }
+                    globalBucket.addTileBucket(bucket);
+                }
+            }
+
         }
 
         // Impossible, but silence flow.
@@ -722,6 +742,16 @@ class SourceCache extends Evented {
         const tile = this._tiles[id];
         if (!tile)
             return;
+
+        for (const bucketId in tile.buckets) {
+            const bucket = tile.buckets[bucketId];
+            if (bucket instanceof CircleBucket) {
+                // TODO: look out for changes to the style that change the bucket->layerId mapping
+                const leaderId = bucket.layerIds[0];
+                let globalBucket = this._globalBuckets[leaderId];
+                globalBucket.removeTileBucket(bucket);
+            }
+        }
 
         tile.uses--;
         delete this._tiles[id];
