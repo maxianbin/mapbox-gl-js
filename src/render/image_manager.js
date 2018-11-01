@@ -105,7 +105,7 @@ class ImageManager {
                 }
             }
         }
-        console.log('getImages', ids);
+
         if (this.isLoaded() || hasAllDependencies) {
             this._notify(ids, callback);
         } else {
@@ -115,9 +115,9 @@ class ImageManager {
 
     _notify(ids: Array<string>, callback: Callback<{[string]: StyleImage}>) {
         const response = {};
+
         for (const id of ids) {
             const image = this.images[id];
-            console.log('image', image, id);
             if (image) {
                 // Clone the image so that our own copy of its ArrayBuffer doesn't get transferred.
                 response[id] = {
@@ -126,7 +126,7 @@ class ImageManager {
                     sdf: image.sdf
                 };
             } else {
-                warnOnce(`Image "${id}" could not be loaded. Please make sure you have added the image (with map.addImage(), an image source or a "sprite" property in your style) before using it in a layer.`);
+                warnOnce(`Image "${id}" could not be loaded. Please make sure you have added the image with map.addImage(), an image source or a "sprite" property in your style before using it in a layer.`);
             }
         }
 
