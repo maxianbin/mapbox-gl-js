@@ -33,18 +33,22 @@ function drawCircles(painter: Painter, sourceCache: SourceCache, layer: CircleSt
     const stencilMode = StencilMode.disabled;
     const colorMode = painter.colorModeForRenderPass();
 
-    const bucket: ?GlobalCircleBucket<*> = (sourceCache.getGlobalBucket(layer): any);
-    if (!bucket) {
+    const buckets: ?GlobalCircleBucket<*> = (sourceCache.getGlobalBuckets(layer): any);
+    if (!buckets) {
         return;
     }
 
-    const programConfiguration = bucket.programConfigurations.get(layer.id);
-    const program = painter.useProgram('circle', programConfiguration);
+    for (const zoom in buckets) {
+        const bucket = buckets[zoom];
 
-    for (let wrap = 0; wrap < 1; wrap++) { // TODO hook wrap up to current tile cover
-        program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
-            circleUniformValues(painter, wrap, layer), layer.id,
-            bucket.layoutVertexBuffer, bucket.indexBuffer, bucket.segments,
-            layer.paint, painter.transform.zoom, programConfiguration);
+        const programConfiguration = bucket.programConfigurations.get(layer.id);
+        const program = painter.useProgram('circle', programConfiguration);
+
+        for (let wrap = -1; wrap <= 1; wrap++) { // TODO hook wrap up to current tile cover
+            program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
+                circleUniformValues(painter, wrap, layer), layer.id,
+                bucket.layoutVertexBuffer, bucket.indexBuffer, bucket.segments,
+                layer.paint, painter.transform.zoom, programConfiguration);
+        }
     }
 }

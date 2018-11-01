@@ -176,7 +176,9 @@ class SourceCache extends Evented {
             this._tiles[i].upload(context);
         }
         for (const i in this._globalBuckets) {
-            this._globalBuckets[i].upload(context);
+            for (const j in this._globalBuckets[i]) {
+                this._globalBuckets[i][j].upload(context);
+            }
         }
     }
 
@@ -270,14 +272,21 @@ class SourceCache extends Evented {
             if (bucket instanceof CircleBucket) {
                 // TODO: look out for changes to the style that change the bucket->layerId mapping
                 const leaderId = bucket.layerIds[0];
-                let globalBucket = this._globalBuckets[leaderId];
+                let globalBucketsForLayer = this._globalBuckets[leaderId];
+                if (!globalBucketsForLayer) {
+                    globalBucketsForLayer = this._globalBuckets[leaderId] = {};
+                }
+                let globalBucket = globalBucketsForLayer[bucket.zoom];
                 if (!globalBucket) {
                     globalBucket = new GlobalCircleBucket({
                         layerIds: bucket.layerIds,
                         layers: bucket.layers
                     });
                     for (const layerId of bucket.layerIds) {
-                        this._globalBuckets[layerId] = globalBucket;
+                        if (!this._globalBuckets[layerId]) {
+                            this._globalBuckets[layerId] = {};
+                        }
+                        this._globalBuckets[layerId][bucket.zoom] = globalBucket;
                     }
                 }
                 globalBucket.addTileBucket(bucket);
@@ -693,14 +702,21 @@ class SourceCache extends Evented {
                 if (bucket instanceof CircleBucket) {
                     // TODO: look out for changes to the style that change the bucket->layerId mapping
                     const leaderId = bucket.layerIds[0];
-                    let globalBucket = this._globalBuckets[leaderId];
+                    let globalBucketsForLayer = this._globalBuckets[leaderId];
+                    if (!globalBucketsForLayer) {
+                        globalBucketsForLayer = this._globalBuckets[leaderId] = {};
+                    }
+                    let globalBucket = globalBucketsForLayer[bucket.zoom];
                     if (!globalBucket) {
                         globalBucket = new GlobalCircleBucket({
                             layerIds: bucket.layerIds,
                             layers: bucket.layers
                         });
                         for (const layerId of bucket.layerIds) {
-                            this._globalBuckets[layerId] = globalBucket;
+                            if (!this._globalBuckets[layerId]) {
+                                this._globalBuckets[layerId] = {};
+                            }
+                            this._globalBuckets[layerId][bucket.zoom] = globalBucket;
                         }
                     }
                     globalBucket.addTileBucket(bucket);
@@ -748,8 +764,13 @@ class SourceCache extends Evented {
             if (bucket instanceof CircleBucket) {
                 // TODO: look out for changes to the style that change the bucket->layerId mapping
                 const leaderId = bucket.layerIds[0];
-                let globalBucket = this._globalBuckets[leaderId];
-                globalBucket.removeTileBucket(bucket);
+                const globalBucket = this._globalBuckets[leaderId][bucket.zoom];
+                const lastBucket = globalBucket.removeTileBucket(bucket);
+                if (lastBucket) {
+                    for (const layerId of bucket.layerIds) {
+                        delete this._globalBuckets[layerId][bucket.zoom];
+                    }
+                }
             }
         }
 
@@ -887,7 +908,7 @@ class SourceCache extends Evented {
         return this._state.getState(sourceLayer, feature);
     }
 
-    getGlobalBucket(layer) {
+    getGlobalBuckets(layer) {
         return this._globalBuckets[layer.id];
     }
 }
