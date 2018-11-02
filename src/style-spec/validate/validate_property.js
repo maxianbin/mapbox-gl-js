@@ -15,7 +15,6 @@ export default function validateProperty(options, propertyType) {
     const propertyKey = options.objectKey;
     const layerSpec = styleSpec[`${propertyType}_${options.layerType}`];
     const propsThatRequireSprite = ['background-pattern', 'fill-pattern', 'fill-extrusion-pattern', 'line-pattern', 'icon-image'];
-
     if (!layerSpec) return [];
 
     const transitionMatch = propertyKey.match(/^(.*)-transition$/);
@@ -55,7 +54,7 @@ export default function validateProperty(options, propertyType) {
 
     if (options.layerType === 'background' || options.layerType === 'fill' || options.layerType === 'fill-extrusion' || options.layerType === 'line' || options.layerType === 'symbol') {
         if (propsThatRequireSprite.indexOf(propertyKey) > -1 && style && !style.sprite) {
-            warnOnce(`Use of "${propertyKey}" in may require a style "sprite" property. If you're experiencing a problem, please ensure that your image has loaded correctly.`);
+            warnOnce(`Use of "${propertyKey}" in style "${style.name}" may require a style "sprite" property. If you're experiencing a problem, please ensure that your image has loaded correctly.`);
         }
     }
 
