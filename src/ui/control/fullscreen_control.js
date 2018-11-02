@@ -30,7 +30,7 @@ class FullscreenControl {
     _fullscreenchange: string;
     _fullscreenButton: HTMLElement;
     _className: string;
-    _source: string;
+    _source: HTMLElement;
 
     constructor(options: Options) {
         this._fullscreen = false;
