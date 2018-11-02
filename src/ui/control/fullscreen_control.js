@@ -16,10 +16,10 @@ type Options = {
  *
  * @implements {IControl}
  * @param {Object} [options]
- * @param {string} [options.source] `source` is a string representing the DOM element which should be made full screen. It must be a full screen [compatible HTML element](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullScreen#Compatible_elements). By default, the map container element will be made full screen.
+ * @param {string} [options.source] `source` is a string representing the DOM element which should be made full screen. It must be a [full screen compatible HTML element](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullScreen#Compatible_elements). By default, the map container element will be made full screen.
  *
  * @example
- * map.addControl(new mapboxgl.FullscreenControl());
+ * map.addControl(new mapboxgl.FullscreenControl({source: 'body'}));
  * @see [View a fullscreen map](https://www.mapbox.com/mapbox-gl-js/example/fullscreen/)
  */
 
