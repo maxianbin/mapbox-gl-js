@@ -7,16 +7,11 @@ import {
     Uniform4f,
     UniformMatrix4f
 } from '../uniform_binding';
-import pixelsToTileUnits from '../../source/pixels_to_tile_units';
 
 import type Context from '../../gl/context';
 import type {UniformValues, UniformLocations} from '../uniform_binding';
-import type {OverscaledTileID} from '../../source/tile_id';
-import type Tile from '../../source/tile';
 import type CircleStyleLayer from '../../style/style_layer/circle_style_layer';
 import type Painter from '../painter';
-
-import { vec4 } from 'gl-matrix';
 
 export type CircleUniformsType = {|
     'u_camera_to_center_distance': Uniform1f,
@@ -38,8 +33,7 @@ const circleUniforms = (context: Context, locations: UniformLocations): CircleUn
 
 const circleUniformValues = (
     painter: Painter,
-    coord: OverscaledTileID,
-    tile: Tile,
+    wrap: number,
     layer: CircleStyleLayer
 ): UniformValues<CircleUniformsType> => {
     const transform = painter.transform;
@@ -55,7 +49,7 @@ const circleUniformValues = (
     }
 
     const matrix = painter.relativeToEyeMatrix(
-        coord.wrap,
+        wrap,
         layer.paint.get('circle-translate'),
         layer.paint.get('circle-translate-anchor'));
 

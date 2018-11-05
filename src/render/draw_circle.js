@@ -8,7 +8,7 @@ import { circleUniformValues } from './program/circle_program';
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
 import type CircleStyleLayer from '../style/style_layer/circle_style_layer';
-import type CircleBucket from '../data/bucket/circle_bucket';
+import type GlobalCircleBucket from '../data/bucket/global_circle_bucket';
 import type {OverscaledTileID} from '../source/tile_id';
 
 export default drawCircles;
@@ -33,18 +33,17 @@ function drawCircles(painter: Painter, sourceCache: SourceCache, layer: CircleSt
     const stencilMode = StencilMode.disabled;
     const colorMode = painter.colorModeForRenderPass();
 
-    for (let i = 0; i < coords.length; i++) {
-        const coord = coords[i];
+    const bucket: ?GlobalCircleBucket<*> = (sourceCache.getGlobalBucket(layer): any);
+    if (!bucket) {
+        return;
+    }
 
-        const tile = sourceCache.getTile(coord);
-        const bucket: ?CircleBucket<*> = (tile.getBucket(layer): any);
-        if (!bucket) continue;
+    const programConfiguration = bucket.programConfigurations.get(layer.id);
+    const program = painter.useProgram('circle', programConfiguration);
 
-        const programConfiguration = bucket.programConfigurations.get(layer.id);
-        const program = painter.useProgram('circle', programConfiguration);
-
+    for (let wrap = 0; wrap < 1; wrap++) { // TODO hook wrap up to current tile cover
         program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
-            circleUniformValues(painter, coord, tile, layer), layer.id,
+            circleUniformValues(painter, wrap, layer), layer.id,
             bucket.layoutVertexBuffer, bucket.indexBuffer, bucket.segments,
             layer.paint, painter.transform.zoom, programConfiguration);
     }

@@ -14,6 +14,8 @@ import browser from '../util/browser';
 import { OverscaledTileID } from './tile_id';
 import assert from 'assert';
 import SourceFeatureState from './source_state';
+import CircleBucket from '../data/bucket/circle_bucket';
+import GlobalCircleBucket from '../data/bucket/global_circle_bucket';
 
 import type {Source} from './source';
 import type Map from '../ui/map';
@@ -57,6 +59,7 @@ class SourceCache extends Evented {
     _isIdRenderable: (id: number, symbolLayer?: boolean) => boolean;
     used: boolean;
     _state: SourceFeatureState;
+    _globalBuckets: {string: GlobalCircleBucket};
 
     static maxUnderzooming: number;
     static maxOverzooming: number;
@@ -96,6 +99,7 @@ class SourceCache extends Evented {
 
         this._coveredTiles = {};
         this._state = new SourceFeatureState();
+        this._globalBuckets = {};
     }
 
     onAdd(map: Map) {
@@ -170,6 +174,9 @@ class SourceCache extends Evented {
         this._state.coalesceChanges(this._tiles, this.map ? this.map.painter : null);
         for (const i in this._tiles) {
             this._tiles[i].upload(context);
+        }
+        for (const i in this._globalBuckets) {
+            this._globalBuckets[i].upload(context);
         }
     }
 
@@ -258,6 +265,26 @@ class SourceCache extends Evented {
         this._state.initializeTileState(tile, this.map ? this.map.painter : null);
 
         this._source.fire(new Event('data', {dataType: 'source', tile, coord: tile.tileID}));
+        for (const bucketId in tile.buckets) {
+            const bucket = tile.buckets[bucketId];
+            if (bucket instanceof CircleBucket) {
+                // TODO: look out for changes to the style that change the bucket->layerId mapping
+                const leaderId = bucket.layerIds[0];
+                let globalBucket = this._globalBuckets[leaderId];
+                if (!globalBucket) {
+                    globalBucket = new GlobalCircleBucket({
+                        layerIds: bucket.layerIds,
+                        layers: bucket.layers
+                    });
+                    for (const layerId of bucket.layerIds) {
+                        this._globalBuckets[layerId] = globalBucket;
+                    }
+                }
+                globalBucket.addTileBucket(bucket);
+            }
+        }
+
+        this._source.fire(new Event('data', {dataType: 'source', tile: tile, coord: tile.tileID}));
     }
 
     /**
@@ -828,6 +855,10 @@ class SourceCache extends Evented {
     getFeatureState(sourceLayer?: string, feature: number) {
         sourceLayer = sourceLayer || '_geojsonTileLayer';
         return this._state.getState(sourceLayer, feature);
+    }
+
+    getGlobalBucket(layer) {
+        return this._globalBuckets[layer.id];
     }
 }
 

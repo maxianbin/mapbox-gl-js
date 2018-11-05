@@ -29,6 +29,8 @@ var map = window.map = new mapboxgl.Map({
 map.addControl(new mapboxgl.NavigationControl());
 map.addControl(new mapboxgl.GeolocateControl());
 
+map.showTileBoundaries = true;
+
 map.on('load', function() {
 
     map.addSource('circles', {
@@ -41,25 +43,11 @@ map.on('load', function() {
         "type": "circle",
         "source": "circles",
         "paint": {
-            "circle-radius": [
-                "interpolate",
-                ["exponential", 2.0],
-                ["zoom"],
-                0, 5,
-                5, ['*', ["get", "scalerank"], 20],
-            ],
-            "circle-color": [
-                "match",
-                ["get", "featureclass"],
-                "cape", "orange",
-                "island", "#0088ff",
-                "plain", "yellow",
-                "pole", "white",
-                "waterfall", "blue",
-                "red"
-            ],
+            "circle-radius": 50,
+            "circle-color": "blue",
             "circle-pitch-scale": "map",
-            "circle-pitch-alignment": "map"
+            "circle-pitch-alignment": "map",
+            "circle-stroke-width": 1
         }
     });
 

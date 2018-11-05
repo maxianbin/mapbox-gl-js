@@ -3,9 +3,7 @@
 import { CircleLayoutArray } from '../array_types';
 
 import { members as layoutAttributes } from './circle_attributes';
-import SegmentVector from '../segment';
 import { ProgramConfigurationSet } from '../program_configuration';
-import { TriangleIndexArray } from '../index_array_type';
 import loadGeometry from '../load_geometry';
 import EXTENT from '../extent';
 import { register } from '../../util/web_worker_transfer';
@@ -20,8 +18,6 @@ import type {
 import type CircleStyleLayer from '../../style/style_layer/circle_style_layer';
 import type HeatmapStyleLayer from '../../style/style_layer/heatmap_style_layer';
 import type Context from '../../gl/context';
-import type IndexBuffer from '../../gl/index_buffer';
-import type VertexBuffer from '../../gl/vertex_buffer';
 import type Point from '@mapbox/point-geometry';
 import type {FeatureStates} from '../../source/source_state';
 import type {ImagePosition} from '../../render/image_atlas';
@@ -73,14 +69,9 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
     stateDependentLayers: Array<Layer>;
 
     layoutVertexArray: CircleLayoutArray;
-    layoutVertexBuffer: VertexBuffer;
-
-    indexArray: TriangleIndexArray;
-    indexBuffer: IndexBuffer;
 
     hasPattern: boolean;
     programConfigurations: ProgramConfigurationSet<Layer>;
-    segments: SegmentVector;
     uploaded: boolean;
     tileID: OverscaledTileID;
 
@@ -94,8 +85,6 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
         this.tileID = options.tileID;
 
         this.layoutVertexArray = new CircleLayoutArray();
-        this.indexArray = new TriangleIndexArray();
-        this.segments = new SegmentVector();
         this.programConfigurations = new ProgramConfigurationSet(layoutAttributes, options.layers, options.zoom);
     }
 
@@ -123,20 +112,18 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
     }
 
     upload(context: Context) {
-        if (!this.uploaded) {
-            this.layoutVertexBuffer = context.createVertexBuffer(this.layoutVertexArray, layoutAttributes);
-            this.indexBuffer = context.createIndexBuffer(this.indexArray);
-        }
-        this.programConfigurations.upload(context);
+        // if (!this.uploaded) {
+        //     this.layoutVertexBuffer = context.createVertexBuffer(this.layoutVertexArray, layoutAttributes);
+        //     this.indexBuffer = context.createIndexBuffer(this.indexArray);
+        // }
+        // this.programConfigurations.upload(context);
         this.uploaded = true;
     }
 
     destroy() {
-        if (!this.layoutVertexBuffer) return;
-        this.layoutVertexBuffer.destroy();
-        this.indexBuffer.destroy();
-        this.programConfigurations.destroy();
-        this.segments.destroy();
+        if (this.programConfigurations) {
+            this.programConfigurations.destroy();
+        }
     }
 
     addFeature(feature: VectorTileFeature, geometry: Array<Array<Point>>, index: number) {
@@ -157,21 +144,12 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
                 // │ 0     1 │
                 // └─────────┘
 
-                const segment = this.segments.prepareSegment(4, this.layoutVertexArray, this.indexArray);
-                const index = segment.vertexLength;
-
                 const globalPos = globalPosition(x, y, this.tileID.canonical);
 
                 addCircleVertex(this.layoutVertexArray, globalPos, -1, -1);
                 addCircleVertex(this.layoutVertexArray, globalPos, 1, -1);
                 addCircleVertex(this.layoutVertexArray, globalPos, 1, 1);
                 addCircleVertex(this.layoutVertexArray, globalPos, -1, 1);
-
-                this.indexArray.emplaceBack(index, index + 1, index + 2);
-                this.indexArray.emplaceBack(index, index + 3, index + 2);
-
-                segment.vertexLength += 4;
-                segment.primitiveLength += 2;
             }
         }
 
