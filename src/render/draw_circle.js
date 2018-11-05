@@ -38,17 +38,15 @@ function drawCircles(painter: Painter, sourceCache: SourceCache, layer: CircleSt
         return;
     }
 
-    for (const zoom in buckets) {
-        const bucket = buckets[zoom];
+    for (const key in buckets) {
+        const bucket = buckets[key];
 
         const programConfiguration = bucket.programConfigurations.get(layer.id);
         const program = painter.useProgram('circle', programConfiguration);
 
-        for (let wrap = -1; wrap <= 1; wrap++) { // TODO hook wrap up to current tile cover
-            program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
-                circleUniformValues(painter, wrap, layer), layer.id,
+        program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
+                circleUniformValues(painter, bucket.wrap, layer), layer.id,
                 bucket.layoutVertexBuffer, bucket.indexBuffer, bucket.segments,
                 layer.paint, painter.transform.zoom, programConfiguration);
-        }
     }
 }

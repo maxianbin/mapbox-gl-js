@@ -267,6 +267,14 @@ class SourceCache extends Evented {
         this._state.initializeTileState(tile, this.map ? this.map.painter : null);
 
         this._source.fire(new Event('data', {dataType: 'source', tile, coord: tile.tileID}));
+        if (this._tiles[id] && !tile.holdingForFade()) {
+            // Only add to global bucket if we're still rendering this tile
+            this._addToGlobalBuckets(tile);
+        }
+        this._source.fire(new Event('data', {dataType: 'source', tile: tile, coord: tile.tileID}));
+    }
+
+    _addToGlobalBuckets(tile: Tile) {
         for (const bucketId in tile.buckets) {
             const bucket = tile.buckets[bucketId];
             if (bucket instanceof CircleBucket) {
@@ -276,24 +284,25 @@ class SourceCache extends Evented {
                 if (!globalBucketsForLayer) {
                     globalBucketsForLayer = this._globalBuckets[leaderId] = {};
                 }
-                let globalBucket = globalBucketsForLayer[bucket.zoom];
+                const bucketKey = `${bucket.zoom}/${bucket.tileID.wrap}`;
+                let globalBucket = globalBucketsForLayer[bucketKey];
                 if (!globalBucket) {
                     globalBucket = new GlobalCircleBucket({
                         layerIds: bucket.layerIds,
-                        layers: bucket.layers
+                        layers: bucket.layers,
+                        wrap: tile.tileID.wrap
                     });
-                    for (const layerId of bucket.layerIds) {
-                        if (!this._globalBuckets[layerId]) {
-                            this._globalBuckets[layerId] = {};
-                        }
-                        this._globalBuckets[layerId][bucket.zoom] = globalBucket;
+                }
+                for (const layerId of bucket.layerIds) {
+                    //console.log("Update global buckets for " + layerId);
+                    if (!this._globalBuckets[layerId]) {
+                        this._globalBuckets[layerId] = {};
                     }
+                    this._globalBuckets[layerId][bucketKey] = globalBucket;
                 }
                 globalBucket.addTileBucket(bucket);
             }
         }
-
-        this._source.fire(new Event('data', {dataType: 'source', tile: tile, coord: tile.tileID}));
     }
 
     /**
@@ -470,6 +479,11 @@ class SourceCache extends Evented {
                 tile.tileID = tile.tileID.unwrapTo(tile.tileID.wrap + wrapDelta);
                 tiles[tile.tileID.key] = tile;
             }
+            for (const i in this._globalBuckets) {
+                for (const j in this._globalBuckets[i]) {
+                    this._globalBuckets[i][j].wrap += wrapDelta;
+                }
+            }
             this._tiles = tiles;
 
             // Reset tile reload timers
@@ -572,10 +586,16 @@ class SourceCache extends Evented {
         const remove = keysDifference(this._tiles, retain);
         for (const tileID of remove) {
             const tile = this._tiles[tileID];
-            if (tile.hasSymbolBuckets && !tile.holdingForFade()) {
-                tile.setHoldDuration(this.map._fadeDuration);
-            } else if (!tile.hasSymbolBuckets || tile.symbolFadeFinished()) {
+            if (!tile.hasSymbolBuckets) {
+                this._removeTileFromGlobalBuckets(tileID);
                 this._removeTile(tileID);
+            } else {
+                if (!tile.holdingForFade()) {
+                    this._removeTileFromGlobalBuckets(tileID);
+                    tile.setHoldDuration(this.map._fadeDuration);
+                } else if (tile.symbolFadeFinished()) {
+                    this._removeTile(tileID);
+                }
             }
         }
     }
@@ -697,32 +717,7 @@ class SourceCache extends Evented {
             tile = new Tile(tileID, this._source.tileSize * tileID.overscaleFactor());
             this._loadTile(tile, this._tileLoaded.bind(this, tile, tileID.key, tile.state));
         } else {
-            for (const bucketId in tile.buckets) {
-                const bucket = tile.buckets[bucketId];
-                if (bucket instanceof CircleBucket) {
-                    // TODO: look out for changes to the style that change the bucket->layerId mapping
-                    const leaderId = bucket.layerIds[0];
-                    let globalBucketsForLayer = this._globalBuckets[leaderId];
-                    if (!globalBucketsForLayer) {
-                        globalBucketsForLayer = this._globalBuckets[leaderId] = {};
-                    }
-                    let globalBucket = globalBucketsForLayer[bucket.zoom];
-                    if (!globalBucket) {
-                        globalBucket = new GlobalCircleBucket({
-                            layerIds: bucket.layerIds,
-                            layers: bucket.layers
-                        });
-                        for (const layerId of bucket.layerIds) {
-                            if (!this._globalBuckets[layerId]) {
-                                this._globalBuckets[layerId] = {};
-                            }
-                            this._globalBuckets[layerId][bucket.zoom] = globalBucket;
-                        }
-                    }
-                    globalBucket.addTileBucket(bucket);
-                }
-            }
-
+            this._addToGlobalBuckets(tile);
         }
 
         // Impossible, but silence flow.
@@ -759,21 +754,6 @@ class SourceCache extends Evented {
         if (!tile)
             return;
 
-        for (const bucketId in tile.buckets) {
-            const bucket = tile.buckets[bucketId];
-            if (bucket instanceof CircleBucket) {
-                // TODO: look out for changes to the style that change the bucket->layerId mapping
-                const leaderId = bucket.layerIds[0];
-                const globalBucket = this._globalBuckets[leaderId][bucket.zoom];
-                const lastBucket = globalBucket.removeTileBucket(bucket);
-                if (lastBucket) {
-                    for (const layerId of bucket.layerIds) {
-                        delete this._globalBuckets[layerId][bucket.zoom];
-                    }
-                }
-            }
-        }
-
         tile.uses--;
         delete this._tiles[id];
         if (this._timers[id]) {
@@ -793,6 +773,33 @@ class SourceCache extends Evented {
         }
     }
 
+    _removeTileFromGlobalBuckets(id: string | number) {
+        const tile = this._tiles[id];
+        if (!tile)
+            return;
+
+        for (const bucketId in tile.buckets) {
+            const bucket = tile.buckets[bucketId];
+            if (bucket instanceof CircleBucket) {
+                // TODO: look out for changes to the style that change the bucket->layerId mapping
+                const leaderId = bucket.layerIds[0];
+                const bucketKey = `${bucket.zoom}/${bucket.tileID.wrap}`;
+                const globalBucket = this._globalBuckets[leaderId][bucketKey];
+                if (globalBucket) {
+                    const lastBucket = globalBucket.removeTileBucket(bucket);
+                    if (lastBucket) {
+                        //console.log("Removing bucket at zoom " + bucketKey);
+                        for (const layerId of bucket.layerIds) {
+                            if (this._globalBuckets[layerId] && this._globalBuckets[layerId][bucketKey])
+                                delete this._globalBuckets[layerId][bucketKey];
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
     /**
      * Remove all tiles from this pyramid
      */
@@ -800,8 +807,10 @@ class SourceCache extends Evented {
         this._shouldReloadOnResume = false;
         this._paused = false;
 
-        for (const id in this._tiles)
+        for (const id in this._tiles) {
+            this._removeTileFromGlobalBuckets(id);
             this._removeTile(id);
+        }
 
         this._cache.reset();
     }
@@ -897,6 +906,11 @@ class SourceCache extends Evented {
     setFeatureState(sourceLayer?: string, feature: number, state: Object) {
         sourceLayer = sourceLayer || '_geojsonTileLayer';
         this._state.updateState(sourceLayer, feature, state);
+        for (const i in this._globalBuckets) {
+            for (const j in this._globalBuckets[i]) {
+                this._globalBuckets[i][j].update();
+            }
+        }
     }
 
     /**

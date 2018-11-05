@@ -38,6 +38,7 @@ class GlobalCircleBucket {
     constructor(options: any) {
         this.layerIds = options.layerIds;
         this.layers = options.layers;
+        this.wrap = options.wrap;
 
         this.tileLayoutVertexArrays = {};
         this.tileProgramConfigurations = {};
@@ -49,8 +50,11 @@ class GlobalCircleBucket {
         this.programConfigurations = new ProgramConfigurationSet(layoutAttributes, options.layers, 0); // TODO figure out zoom, shared program configs, etc.
     }
 
-    update() {
-        // TODO: Implement feature states and paint array updates!
+    update(states: FeatureStates, vtLayer: VectorTileLayer) {
+        // TODO: Actually hook up all the plumbing to update in place
+        // For now, count on the per-tile buckets re-generating, and just copy everything over
+        // again.
+        this.uploaded = false;
     }
 
     isEmpty() {
@@ -63,24 +67,28 @@ class GlobalCircleBucket {
 
     addTileBucket(bucket: CircleBucket) {
         const key = bucket.layerIds[0] + bucket.tileID.toString() + "/" + bucket.tileID.wrap;
-        console.log("Adding " + key);
+        //console.log("Adding " + key);
         this.tileLayoutVertexArrays[key] = bucket.layoutVertexArray;
         this.tileProgramConfigurations[key] = bucket.programConfigurations;
         this.zoom = bucket.zoom;
+        this.layers = bucket.layers;
+        this.layerIds = bucket.layerIds;
+        this.stateDependentLayers = bucket.stateDependentLayers;
         this.uploaded = false;
     }
 
     removeTileBucket(bucket: CircleBucket) {
         const key = bucket.layerIds[0] + bucket.tileID.toString() + "/" + bucket.tileID.wrap;
-        console.log("Removing " + key);
+        //console.log("Removing " + key);
         delete this.tileLayoutVertexArrays[key];
         delete this.tileProgramConfigurations[key];
         this.uploaded = false;
+        return Object.keys(this.tileLayoutVertexArrays).length === 0;
     }
 
-    upload(context: Context) {
+    upload(context: Context, duplicates: any) {
         if (!this.uploaded) {
-            this.generateArrays();
+            this.generateArrays(duplicates);
             this.layoutVertexBuffer = context.createVertexBuffer(this.layoutVertexArray, layoutAttributes);
             this.indexBuffer = context.createIndexBuffer(this.indexArray);
         }
@@ -125,29 +133,35 @@ class GlobalCircleBucket {
         this.indexArray = new TriangleIndexArray();
         this.programConfigurations = new ProgramConfigurationSet(layoutAttributes, this.layers, this.zoom); // TODO figure out zoom, shared program configs, etc.
 
-        const circles = this.programConfigurations.programConfigurations.circles;
-        for (const property in circles.binders) {
-            const binder = circles.binders[property];
-            if (!binder.paintVertexArray) continue;
-            for (const key in this.tileProgramConfigurations) {
-                binder.paintVertexArray._trim();
-                const tileProgramConfiguration = this.tileProgramConfigurations[key];
-                binder.maxValue = Math.max(binder.maxValue, tileProgramConfiguration.programConfigurations.circles.binders[property].maxValue);
-                const tilePaintVertexArray = tileProgramConfiguration.programConfigurations.circles.binders[property].paintVertexArray;
-                const baseIndex = binder.paintVertexArray.length;
-                const baseIndexUint8 = binder.paintVertexArray.uint8.length;
-                binder.paintVertexArray.resize(baseIndex + tilePaintVertexArray.length);
-                binder.paintVertexArray._trim();
-                for (let i = 0; i < tilePaintVertexArray.uint8.length; i++) {
-                    binder.paintVertexArray.uint8[baseIndexUint8 + i] = tilePaintVertexArray.uint8[i];
+        for (const layerId of this.layerIds) {
+            //console.log(`Copying paint properties for ${layerId}`);
+            const circles = this.programConfigurations.programConfigurations[layerId];
+            for (const property in circles.binders) {
+                const binder = circles.binders[property];
+                if (!binder.paintVertexArray) continue;
+                for (const key in this.tileProgramConfigurations) {
+                    binder.paintVertexArray._trim();
+                    const tileProgramConfiguration = this.tileProgramConfigurations[key];
+                    //console.log(`Copying paint properties for ${property} from ${key} for ${layerId}`);
+                    binder.maxValue = Math.max(binder.maxValue, tileProgramConfiguration.programConfigurations[layerId].binders[property].maxValue);
+                    const tilePaintVertexArray = tileProgramConfiguration.programConfigurations[layerId].binders[property].paintVertexArray;
+                    const baseIndex = binder.paintVertexArray.length;
+                    const baseIndexUint8 = binder.paintVertexArray.uint8.length;
+                    binder.paintVertexArray.resize(baseIndex + tilePaintVertexArray.length);
+                    binder.paintVertexArray._trim();
+                    for (let i = 0; i < tilePaintVertexArray.uint8.length; i++) {
+                        binder.paintVertexArray.uint8[baseIndexUint8 + i] = tilePaintVertexArray.uint8[i];
+                    }
                 }
             }
         }
         this.programConfigurations.needsUpload = true;
 
-        this.layoutVertexArray.reserve(Object.values(this.tileLayoutVertexArrays).reduce((sum, current) => {
-            return sum + current.length;
-        }, 0));
+        let combinedLength = 0;
+        for (const key in this.tileLayoutVertexArrays) {
+            combinedLength += this.tileLayoutVertexArrays[key].length;
+        }
+        this.layoutVertexArray.reserve(combinedLength);
 
         const indexPositions = [];
         for (const key in this.tileLayoutVertexArrays) {
@@ -177,7 +191,6 @@ class GlobalCircleBucket {
             const index = indexPosition.index;
             this.indexArray.emplaceBack(index, index + 1, index + 2);
             this.indexArray.emplaceBack(index, index + 3, index + 2);
-
         }
         this.indexArray._trim();
         this.layoutVertexArray._trim();
