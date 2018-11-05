@@ -294,8 +294,6 @@ class Transform {
     get x(): number { return this.lngX(this.center.lng); }
     get y(): number { return this.latY(this.center.lat); }
 
-    get point(): Point { return new Point(this.x, this.y); }
-
     /**
      * longitude to absolute x coord
      * @returns {number} pixel coordinate
@@ -313,13 +311,6 @@ class Transform {
         return (180 - y) * (worldSize || this.worldSize) / 360;
     }
 
-    xLng(x: number, worldSize?: number) {
-        return x * 360 / (worldSize || this.worldSize) - 180;
-    }
-    yLat(y: number, worldSize?: number) {
-        const y2 = 180 - y * 360 / (worldSize || this.worldSize);
-        return 360 / Math.PI * Math.atan(Math.exp(y2 * Math.PI / 180)) - 90;
-    }
 
     setLocationAtPoint(lnglat: LngLat, point: Point) {
         const a = this.pointCoordinate(point);
