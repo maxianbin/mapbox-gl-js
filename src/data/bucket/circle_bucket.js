@@ -27,10 +27,33 @@ import type {FeatureStates} from '../../source/source_state';
 import type {ImagePosition} from '../../render/image_atlas';
 
 
-function addCircleVertex(layoutVertexArray, x, y, extrudeX, extrudeY) {
+function addCircleVertex(layoutVertexArray, globalPosition, extrudeX, extrudeY) {
     layoutVertexArray.emplaceBack(
-        (x * 2) + ((extrudeX + 1) / 2),
-        (y * 2) + ((extrudeY + 1) / 2));
+        globalPosition[0], // x high bits
+        globalPosition[1], // y high bits
+        (globalPosition[2] * 2) + ((extrudeX + 1) / 2),  // x low bits + x extrude
+        (globalPosition[3] * 2) + ((extrudeY + 1) / 2)); // y low bits + y extrude
+}
+
+const maxUint15 = Math.pow(2, 15);
+
+function globalPosition(tileX: number, tileY: number, canonical: CanonicalTileID): Array<number> {
+    // Convert to a global representation:
+    // xHigh (UINT16): coordinate of z16 tile containing this point
+    // yHigh (UINT16): coordinate of z16 tile containing this point
+    // xLow (UINT15): 15 bits of x precision within the z16 tile
+    // yLow (UINT15): 15 bits of y precision within the z16 tile
+    const scaleDiff = Math.pow(2, 16 - canonical.z);
+    const tileXFractional = tileX / EXTENT;
+    const tileYFractional = tileY / EXTENT;
+    const fullPrecisionX = scaleDiff * canonical.x + tileXFractional * scaleDiff;
+    const fullPrecisionY = scaleDiff * canonical.y + tileYFractional * scaleDiff;
+    return [
+        Math.floor(fullPrecisionX),
+        Math.floor(fullPrecisionY),
+        Math.floor((fullPrecisionX % 1) * maxUint15),
+        Math.floor((fullPrecisionY % 1) * maxUint15)
+    ];
 }
 
 
@@ -59,6 +82,7 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
     programConfigurations: ProgramConfigurationSet<Layer>;
     segments: SegmentVector;
     uploaded: boolean;
+    tileID: OverscaledTileID;
 
     constructor(options: BucketParameters<Layer>) {
         this.zoom = options.zoom;
@@ -67,6 +91,7 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
         this.layerIds = this.layers.map(layer => layer.id);
         this.index = options.index;
         this.hasPattern = false;
+        this.tileID = options.tileID;
 
         this.layoutVertexArray = new CircleLayoutArray();
         this.indexArray = new TriangleIndexArray();
@@ -135,10 +160,12 @@ class CircleBucket<Layer: CircleStyleLayer | HeatmapStyleLayer> implements Bucke
                 const segment = this.segments.prepareSegment(4, this.layoutVertexArray, this.indexArray);
                 const index = segment.vertexLength;
 
-                addCircleVertex(this.layoutVertexArray, x, y, -1, -1);
-                addCircleVertex(this.layoutVertexArray, x, y, 1, -1);
-                addCircleVertex(this.layoutVertexArray, x, y, 1, 1);
-                addCircleVertex(this.layoutVertexArray, x, y, -1, 1);
+                const globalPos = globalPosition(x, y, this.tileID.canonical);
+
+                addCircleVertex(this.layoutVertexArray, globalPos, -1, -1);
+                addCircleVertex(this.layoutVertexArray, globalPos, 1, -1);
+                addCircleVertex(this.layoutVertexArray, globalPos, 1, 1);
+                addCircleVertex(this.layoutVertexArray, globalPos, -1, 1);
 
                 this.indexArray.emplaceBack(index, index + 1, index + 2);
                 this.indexArray.emplaceBack(index, index + 3, index + 2);

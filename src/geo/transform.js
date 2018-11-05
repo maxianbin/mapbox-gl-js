@@ -30,6 +30,7 @@ class Transform {
     zoomFraction: number;
     pixelsToGLUnits: [number, number];
     cameraToCenterDistance: number;
+    globalCenterPos: number;
     mercatorMatrix: Array<number>;
     projMatrix: Float64Array;
     alignedProjMatrix: Float64Array;
@@ -290,6 +291,35 @@ class Transform {
     }
 
     get point(): Point { return this.project(this.center); }
+    get x(): number { return this.lngX(this.center.lng); }
+    get y(): number { return this.latY(this.center.lat); }
+
+    get point(): Point { return new Point(this.x, this.y); }
+
+    /**
+     * longitude to absolute x coord
+     * @returns {number} pixel coordinate
+     */
+    lngX(lng: number, worldSize?: number) {
+        return (180 + lng) * (worldSize || this.worldSize) / 360;
+    }
+    /**
+     * latitude to absolute y coord
+     * @returns {number} pixel coordinate
+     */
+    latY(lat: number, worldSize?: number) {
+        lat = clamp(lat, -this.maxValidLatitude, this.maxValidLatitude);
+        const y = 180 / Math.PI * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+        return (180 - y) * (worldSize || this.worldSize) / 360;
+    }
+
+    xLng(x: number, worldSize?: number) {
+        return x * 360 / (worldSize || this.worldSize) - 180;
+    }
+    yLat(y: number, worldSize?: number) {
+        const y2 = 180 - y * 360 / (worldSize || this.worldSize);
+        return 360 / Math.PI * Math.atan(Math.exp(y2 * Math.PI / 180)) - 90;
+    }
 
     setLocationAtPoint(lnglat: LngLat, point: Point) {
         const a = this.pointCoordinate(point);
@@ -546,6 +576,18 @@ class Transform {
         // The mercatorMatrix can be used to transform points from mercator coordinates
         // ([0, 0] nw, [1, 1] se) to GL coordinates.
         this.mercatorMatrix = mat4.scale([], m, [this.worldSize, this.worldSize, this.worldSize]);
+
+        this.globalCoordWorldSize = Math.pow(2, 31);
+        this.globalX = this.lngX(this.center.lng, this.globalCoordWorldSize);
+        this.globalY = this.latY(this.center.lat, this.globalCoordWorldSize);
+        this.globalCenterPos = [
+            Math.floor(this.globalX / Math.pow(2, 15)),
+            Math.floor(this.globalY / Math.pow(2, 15)),
+            Math.floor(this.globalX % Math.pow(2, 15)),
+            Math.floor(this.globalY % Math.pow(2, 15))
+        ];
+        const globalPixelRatio = this.worldSize / this.globalCoordWorldSize;
+        this.globalMatrix = mat4.scale([], m, [globalPixelRatio, globalPixelRatio, globalPixelRatio]);
 
         // scale vertically to meters per pixel (inverse of ground resolution):
         mat4.scale(m, m, [1, 1, mercatorZfromAltitude(1, this.center.lat) * this.worldSize, 1]);
