@@ -953,6 +953,7 @@ class Map extends Camera {
     setStyle(style: StyleSpecification | string | null, options?: {diff?: boolean} & StyleOptions) {
         const shouldTryDiff = (!options || (options.diff !== false && !options.localIdeographFontFamily)) && this.style;
         if (shouldTryDiff && style) {
+            console.log('diff the styles');
             if (typeof style === 'string') {
                 const url = normalizeStyleURL(style);
                 const request = this._transformRequest(url, ResourceType.Style);
@@ -961,19 +962,16 @@ class Map extends Camera {
                     this.fire(new ErrorEvent(error));
                   } else if (json) {
                     console.log('json', json);
-                    this.on('style.load', () => {
-                      console.log('style loaded');
-                      try {
-                        if (this.style.setState(json)) {
-                          this._update(true);
-                        }
-                        return this;
-                      } catch (e) {
-                        warnOnce(
-                          `Unable to perform style diff: ${e.message || e.error || e}.  Rebuilding the style from scratch.`
-                        );
+                    try {
+                      if (this.style.setState(json)) {
+                        this._update(true);
                       }
-                    });
+                      return this;
+                    } catch (e) {
+                      warnOnce(
+                        `Unable to perform style diff: ${e.message || e.error || e}.  Rebuilding the style from scratch.`
+                      );
+                    }
                   }
                 });
             } else if (typeof style === 'object') {
@@ -988,30 +986,31 @@ class Map extends Camera {
                   );
                 }
             }
-
-        }
-
-        if (this.style) {
+        } else {
+          console.log('set a new style');
+          if (this.style) {
             this.style.setEventedParent(null);
             this.style._remove();
-        }
+          }
 
-        if (!style) {
+          if (!style) {
             delete this.style;
             return this;
-        } else {
+          } else {
             this.style = new Style(this, options || {});
-        }
+          }
 
-        this.style.setEventedParent(this, {style: this.style});
+          this.style.setEventedParent(this, {style: this.style});
 
-        if (typeof style === 'string') {
+          if (typeof style === 'string') {
             this.style.loadURL(style);
-        } else {
+          } else {
             this.style.loadJSON(style);
+          }
+
+          return this;
         }
 
-        return this;
     }
 
     /**

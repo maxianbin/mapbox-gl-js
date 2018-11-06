@@ -67,14 +67,7 @@ layers.push({
 var test = Object.assign({}, light, {layers, sources});
 var ice = 'mapbox://styles/ryanhamley/cjnp3xh1t1ufg2sjv4o9ykjaf';
 
-console.log('light', light, test);
-
 var style = light;
-style.light = {
-  "anchor": "viewport",
-  "color": "white",
-  "intensity": 0.4
-}
 var map = window.map = new mapboxgl.Map({
     container: 'map',
     zoom: 2,
@@ -83,18 +76,11 @@ var map = window.map = new mapboxgl.Map({
     hash: style
 });
 
-map.on('style.load', function () {
-  console.log('light style', map.getStyle());
-  console.log('light', map.getLight());
-  console.log('center', map.getCenter());
-});
-// setTimeout(function () {
-//   console.log('setting ice style');
-//   map.setStyle(ice);
-//   map.on('styledata', function () {
-//     console.log('ice style', map.getStyle());
-//   });
-// }, 2000);
+setTimeout(function () {
+  console.log('setting new style');
+  map.setStyle(ice);
+  map.setStyle(dark)
+}, 5000);
 
 // setInterval(function () {
 //     style = (style === dark ? light : dark);
