@@ -934,16 +934,15 @@ class Map extends Camera {
     }
 
     /**
-     * Updates the map's Mapbox style object with a new value.  If the given
-     * value is style JSON object, compares it against the the map's current
-     * state and perform only the changes necessary to make the map style match
-     * the desired state.
+     * Updates the map's Mapbox style object with a new value. If a style already is set and options.diff is true,
+     * this compares the style against the map's current state and performs only the changes necessary to make
+     * the map style match the desired state.
      *
      * @param style A JSON object conforming to the schema described in the
      *   [Mapbox Style Specification](https://mapbox.com/mapbox-gl-style-spec/), or a URL to such JSON.
      * @param {Object} [options]
      * @param {boolean} [options.diff=true] If false, force a 'full' update, removing the current style
-     *   and adding building the given one instead of attempting a diff-based update.
+     *   and building the given one instead of attempting a diff-based update.
      * @param {string} [options.localIdeographFontFamily=null] If non-null, defines a css font-family
      *   for locally overriding generation of glyphs in the 'CJK Unified Ideographs' and 'Hangul Syllables'
      *   ranges. Forces a full update.
@@ -953,7 +952,6 @@ class Map extends Camera {
     setStyle(style: StyleSpecification | string | null, options?: {diff?: boolean} & StyleOptions) {
         const shouldTryDiff = (!options || (options.diff !== false && !options.localIdeographFontFamily)) && this.style;
         if (shouldTryDiff && style) {
-            console.log('diff the styles');
             if (typeof style === 'string') {
                 const url = normalizeStyleURL(style);
                 const request = this._transformRequest(url, ResourceType.Style);
@@ -961,7 +959,6 @@ class Map extends Camera {
                   if (error) {
                     this.fire(new ErrorEvent(error));
                   } else if (json) {
-                    console.log('json', json);
                     try {
                       if (this.style.setState(json)) {
                         this._update(true);
@@ -987,7 +984,6 @@ class Map extends Camera {
                 }
             }
         } else {
-          console.log('set a new style');
           if (this.style) {
             this.style.setEventedParent(null);
             this.style._remove();
@@ -1010,7 +1006,6 @@ class Map extends Camera {
 
           return this;
         }
-
     }
 
     /**

@@ -81,8 +81,8 @@ window.lightv9 = {
       "type": "vector"
     }
   },
-  "sprite": "mapbox://sprites/ryanhamley/cjnp3xh1t1ufg2sjv4o9ykjaf",
-  "glyphs": "mapbox://fonts/ryanhamley/{fontstack}/{range}.pbf",
+  "sprite": "mapbox://sprites/mapbox/light-v9",
+  "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
   "layers": [
     {
       "id": "background",
